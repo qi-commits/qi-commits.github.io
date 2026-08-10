@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Region Recorder · 交互流程演示</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+body{
+  background:linear-gradient(135deg,#0f0c29,#1a1a3e,#24243e);
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif;
+  overflow:hidden;padding:20px;
+}
+.stage{display:flex;flex-direction:column;align-items:center;gap:18px;}
+.demo-title{color:#fff;font-size:22px;font-weight:600;letter-spacing:1px;text-shadow:0 2px 10px rgba(0,0,0,.3);}
+.demo-subtitle{color:rgba(255,255,255,.5);font-size:13px;margin-top:-12px;}
+
+/* Browser Frame */
+.browser{
+  width:960px;height:500px;background:#1a1a1a;border-radius:12px;padding:0;
+  box-shadow:0 0 0 2px #333,0 25px 70px rgba(0,0,0,.6),0 0 100px rgba(74,140,255,.08);
+  position:relative;overflow:hidden;
+}
+.browser-bar{
+  height:36px;background:#2a2a2a;display:flex;align-items:center;gap:8px;
+  padding:0 14px;border-bottom:1px solid #1a1a1a;
+}
+.browser-dots{display:flex;gap:7px;}
+.browser-dots span{width:12px;height:12px;border-radius:50%;}
+.browser-dots span:nth-child(1){background:#ff5f57;}
+.browser-dots span:nth-child(2){background:#febc2e;}
+.browser-dots span:nth-child(3){background:#28c840;}
+.browser-url{
+  flex:1;height:24px;background:#1a1a1a;border-radius:6px;display:flex;align-items:center;
+  padding:0 12px;font-size:12px;color:#888;margin-left:8px;
+}
+.browser-url::before{
+  content:'';width:10px;height:10px;border-radius:50%;border:2px solid #28c840;
+  margin-right:8px;flex-shrink:0;
+}
+.browser-actions{display:flex;gap:6px;margin-left:8px;}
+.browser-actions span{width:14px;height:14px;background:#444;border-radius:3px;}
+
+.browser-screen-wrap{
+  width:100%;height:calc(100% - 36px);background:#000;overflow:hidden;position:relative;
+}
+
+/* Screens - using actual screenshots */
+.screen{
+  position:absolute;top:0;left:0;width:100%;height:100%;
+  transition:transform .45s cubic-bezier(.4,0,.2,1),opacity .35s ease;
+  opacity:0;transform:translateX(100%);
+  background-size:cover;
+  background-position:center center;
+  background-repeat:no-repeat;
+  background-color:#1e1e2e;
+}
+.screen.portrait{
+  background-size:contain;
+  background-color:#1e1e2e;
+}
+.screen.active{opacity:1;transform:translateX(0);}
+
+/* Cursor (desktop style) */
+.cursor{
+  position:absolute;top:0;left:0;width:24px;height:24px;z-index:9999;
+  pointer-events:none;
+  transition:transform .6s cubic-bezier(.4,0,.2,1),opacity .2s ease;
+  opacity:0;transform:translate(-100px,-100px);
+}
+.cursor.visible{opacity:1;}
+.cursor svg{width:100%;height:100%;filter:drop-shadow(0 2px 4px rgba(0,0,0,.4));}
+.cursor.clicking svg{transform:scale(.8);}
+.cursor-glow{
+  position:absolute;top:50%;left:50%;width:50px;height:50px;border-radius:50%;
+  background:radial-gradient(circle,rgba(74,140,255,.3),transparent 70%);
+  transform:translate(-50%,-50%);opacity:0;transition:opacity .2s ease;
+}
+.cursor.visible .cursor-glow{opacity:1;}
+.cursor.clicking .cursor-glow{
+  background:radial-gradient(circle,rgba(74,140,255,.6),transparent 70%);
+  animation:glowPulse .5s ease-out;
+}
+@keyframes glowPulse{
+  0%{transform:translate(-50%,-50%) scale(.5);opacity:1;}
+  100%{transform:translate(-50%,-50%) scale(2.5);opacity:0;}
+}
+
+/* Click ripple */
+.click-ripple{
+  position:absolute;width:60px;height:60px;border-radius:50%;
+  border:2px solid rgba(74,140,255,.6);z-index:9998;pointer-events:none;
+  opacity:0;transform:scale(0);
+}
+.click-ripple.active{animation:rippleAnim .6s ease-out;}
+@keyframes rippleAnim{
+  0%{opacity:1;transform:scale(.3);}
+  100%{opacity:0;transform:scale(2.5);}
+}
+
+/* Progress & Controls */
+.progress-row{display:flex;align-items:center;gap:16px;}
+.progress-dots{display:flex;gap:8px;}
+.pdot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.2);transition:all .3s ease;}
+.pdot.active{background:#4A8CFF;width:24px;border-radius:4px;}
+.pdot.done{background:rgba(74,140,255,.5);}
+.step-label{color:rgba(255,255,255,.7);font-size:13px;min-width:300px;text-align:center;}
+.controls{display:flex;gap:10px;}
+.ctrl-btn{
+  background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);
+  border-radius:8px;padding:6px 16px;font-size:13px;cursor:pointer;transition:all .2s ease;
+}
+.ctrl-btn:hover{background:rgba(255,255,255,.2);}
+
+/* Portfolio embed modes */
+html.embed,html.embed body{
+  background:transparent !important;
+  min-height:0;
+  height:100%;
+  overflow:hidden;
+  padding:0;
+}
+html.embed .stage{
+  width:100%;
+  height:100%;
+  justify-content:center;
+  gap:12px;
+}
+html.embed .demo-title,
+html.embed .demo-subtitle{display:none;}
+html.embed.compact .progress-row,
+html.embed.compact .step-label,
+html.embed.compact .controls{display:none;}
+html.embed .step-label{color:rgba(15,23,32,.55);min-width:0;}
+html.embed .ctrl-btn{
+  background:rgba(15,23,32,.06);
+  color:#1a2330;
+  border-color:rgba(15,23,32,.12);
+}
+html.embed .ctrl-btn:hover{background:rgba(15,23,32,.1);}
+html.embed .pdot{background:rgba(15,23,32,.15);}
+html.embed .pdot.active{background:#e07a3a;box-shadow:0 0 8px rgba(224,122,58,.35);}
+html.embed .pdot.done{background:rgba(224,122,58,.45);}
+html.embed .phone{
+  box-shadow:
+    0 0 0 1px rgba(15,23,32,.1),
+    0 10px 24px rgba(15,23,32,.14);
+}
+html.embed .browser{
+  box-shadow:
+    0 0 0 1px rgba(15,23,32,.1),
+    0 10px 24px rgba(15,23,32,.14);
+}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="demo-title">Region Recorder · 交互流程演示</div>
+  <div class="demo-subtitle">高清自动播放 · 模拟鼠标触控交互 · 真实截图</div>
+  <div class="browser">
+    <div class="browser-bar">
+      <div class="browser-dots"><span></span><span></span><span></span></div>
+      <div class="browser-url">chrome-extension://region-recorder/index.html</div>
+      <div class="browser-actions"><span></span><span></span></div>
+    </div>
+    <div class="browser-screen-wrap" id="screenWrap">
+
+      <!-- Screen 0: 插件弹窗面板（竖屏图，用contain保持比例） -->
+      <div class="screen portrait" data-screen="0" style="background-image:url('recorder-images/screen0-extension-panel.png');"></div>
+
+      <!-- Screen 1: Chrome分享选择弹窗 -->
+      <div class="screen" data-screen="1" style="background-image:url('recorder-images/screen1-share-dialog.png');"></div>
+
+      <!-- Screen 2: 区域框选 + 开始录制 -->
+      <div class="screen" data-screen="2" style="background-image:url('recorder-images/screen2-region-select.png');"></div>
+
+      <!-- Screen 3: 录制中 -->
+      <div class="screen" data-screen="3" style="background-image:url('recorder-images/screen3-recording.png');"></div>
+
+      <!-- Screen 4: 录屏预览/导出 -->
+      <div class="screen" data-screen="4" style="background-image:url('recorder-images/screen4-preview.png');"></div>
+
+      <!-- Click ripple -->
+      <div class="click-ripple" id="clickRipple"></div>
+
+      <!-- Cursor -->
+      <div class="cursor" id="cursor">
+        <div class="cursor-glow"></div>
+        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M5 2L19 12L12 13L9 20L5 2Z" fill="white" stroke="#333" stroke-width="1.5" stroke-linejoin="round"/>
+        </svg>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="progress-row"><div class="progress-dots" id="progressDots"></div></div>
+  <div class="step-label" id="stepLabel">准备中...</div>
+  <div class="controls">
+    <button class="ctrl-btn" id="replayBtn">重新播放</button>
+    <button class="ctrl-btn" id="pauseBtn">暂停</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const params = new URLSearchParams(location.search);
+  if (params.get('embed') === '1') document.documentElement.classList.add('embed');
+  if (params.get('compact') === '1') document.documentElement.classList.add('compact');
+
+  const screenWrap = document.getElementById('screenWrap');
+  const screens = document.querySelectorAll('.screen');
+  const cursor = document.getElementById('cursor');
+  const clickRipple = document.getElementById('clickRipple');
+  const stepLabel = document.getElementById('stepLabel');
+  const progressDots = document.getElementById('progressDots');
+  const replayBtn = document.getElementById('replayBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+
+  const wrapRect = () => screenWrap.getBoundingClientRect();
+
+  // 交互流程定义 - 基于真实截图的按钮位置
+  // 显示区域: 960x464 (宽高比2.07:1，匹配大部分宽屏截图)
+  const STEPS = [
+    {
+      screen: 0,  // 插件弹窗面板（竖屏，contain居中）
+      label: '点击「开始框选」按钮，启动区域录制',
+      transition: 'init',
+      waitBefore: 1000,
+      waitAfter: 500,
+      tapX: 0.50,  // 蓝色「开始框选」按钮居中
+      tapY: 0.22   // 按钮位于面板上方区域
+    },
+    {
+      screen: 1,  // Chrome分享选择弹窗（cover，轻微上下裁切）
+      label: '选择要分享的标签页，点击「分享」',
+      transition: 'fade',
+      waitBefore: 1000,
+      waitAfter: 500,
+      tapX: 0.72,  // 「分享」按钮在弹窗右下角
+      tapY: 0.93   // 弹窗底部（cover微调）
+    },
+    {
+      screen: 2,  // 区域框选（cover，左右裁切）
+      label: '框选录制区域，点击「开始录制」',
+      transition: 'fade',
+      waitBefore: 1000,
+      waitAfter: 500,
+      tapX: 0.36,  // 「开始录制」按钮（cover左右裁切微调）
+      tapY: 0.93   // 底部控制栏
+    },
+    {
+      screen: 3,  // 录制中（cover，几乎匹配）
+      label: '录制进行中，点击红色「停止」按钮',
+      transition: 'fade',
+      waitBefore: 1200,
+      waitAfter: 500,
+      tapX: 0.16,  // 红色「停止」按钮在左下角
+      tapY: 0.95   // 底部录制控制栏
+    },
+    {
+      screen: 4,  // 录屏预览（cover，左右裁切较多）
+      label: '录屏预览，点击「下载」保存视频',
+      transition: 'push',
+      waitBefore: 1000,
+      waitAfter: 1500,
+      tapX: 0.17,  // 「下载」按钮（cover左右裁切微调）
+      tapY: 0.88   // 预览页面底部
+    }
+  ];
+
+  STEPS.forEach(() => { const d = document.createElement('div'); d.className = 'pdot'; progressDots.appendChild(d); });
+
+  let currentStep = 0, currentScreenIndex = -1, isPlaying = true, timerHandle = null;
+
+  function delay(ms){ return new Promise(r => { timerHandle = setTimeout(r, ms); }); }
+
+  function showScreen(screenIndex, transition){
+    if(transition === 'init' || currentScreenIndex === -1){
+      screens.forEach(s => { s.classList.remove('active'); s.style.transition='none'; s.style.opacity='0'; s.style.transform='translateX(100%)'; s.style.zIndex=''; });
+      const target = screens[screenIndex];
+      requestAnimationFrame(() => { requestAnimationFrame(() => { target.style.transition=''; target.style.opacity='1'; target.style.transform='translateX(0)'; target.classList.add('active'); }); });
+      currentScreenIndex = screenIndex; return;
+    }
+    if(transition === 'fade'){
+      const target = screens[screenIndex];
+      const prev = currentScreenIndex >= 0 ? screens[currentScreenIndex] : null;
+      if(prev && prev !== target){ prev.classList.remove('active'); prev.style.zIndex='1'; prev.style.transition='opacity .3s ease'; prev.style.opacity='0'; }
+      target.style.transition='none'; target.style.zIndex='2'; target.style.opacity='0'; target.style.transform='translateX(0)';
+      requestAnimationFrame(() => { requestAnimationFrame(() => { target.style.transition='opacity .4s ease'; target.style.opacity='1'; target.classList.add('active'); }); });
+      currentScreenIndex = screenIndex;
+      return;
+    }
+    // push transition
+    const target = screens[screenIndex];
+    const prev = currentScreenIndex >= 0 ? screens[currentScreenIndex] : null;
+    if(prev && prev !== target){ prev.classList.remove('active'); prev.style.zIndex='1'; prev.style.transform='translateX(-30%)'; prev.style.opacity='0'; }
+    target.style.transition='none'; target.style.zIndex='2'; target.style.transform='translateX(100%)'; target.style.opacity='0';
+    requestAnimationFrame(() => { requestAnimationFrame(() => { target.style.transition=''; target.style.opacity='1'; target.style.transform='translateX(0)'; target.classList.add('active'); }); });
+    currentScreenIndex = screenIndex;
+  }
+
+  function getTapPosition(tapX, tapY){
+    const rect = wrapRect();
+    return {
+      x: rect.width * tapX,
+      y: rect.height * tapY
+    };
+  }
+
+  function moveCursor(x, y){ cursor.style.transform = 'translate(' + (x - 4) + 'px,' + (y - 2) + 'px)'; }
+  function showCursor(){ cursor.classList.add('visible'); }
+  function hideCursor(){ cursor.classList.remove('visible'); cursor.classList.remove('clicking'); }
+  function clickCursor(){ cursor.classList.add('clicking'); }
+  function releaseClick(){ cursor.classList.remove('clicking'); }
+
+  function showClickRipple(x, y){
+    clickRipple.style.left = (x - 30) + 'px';
+    clickRipple.style.top = (y - 30) + 'px';
+    clickRipple.classList.remove('active');
+    void clickRipple.offsetWidth;
+    clickRipple.classList.add('active');
+  }
+
+  function updateProgress(stepIndex){
+    const dots = progressDots.querySelectorAll('.pdot');
+    dots.forEach((d,i) => { d.classList.remove('active','done'); if(i<stepIndex) d.classList.add('done'); else if(i===stepIndex) d.classList.add('active'); });
+  }
+
+  async function playStep(stepIndex){
+    if(!isPlaying) return;
+    const step = STEPS[stepIndex];
+    currentStep = stepIndex;
+    showScreen(step.screen, step.transition);
+    stepLabel.textContent = step.label;
+    updateProgress(stepIndex);
+    await delay(step.waitBefore);
+    if(!isPlaying) return;
+    const pos = getTapPosition(step.tapX, step.tapY);
+    // 鼠标从右上方移动到目标位置
+    const startX = Math.min(pos.x + 80, wrapRect().width - 30);
+    const startY = Math.max(pos.y - 60, 10);
+    moveCursor(startX, startY);
+    showCursor();
+    await delay(300);
+    // 移动到目标
+    moveCursor(pos.x, pos.y);
+    await delay(700);
+    if(!isPlaying) return;
+    // 点击
+    clickCursor();
+    showClickRipple(pos.x, pos.y);
+    await delay(200);
+    releaseClick();
+    await delay(step.waitAfter);
+    if(!isPlaying) return;
+    hideCursor();
+    await delay(200);
+    const nextStep = (stepIndex + 1) % STEPS.length;
+    if(nextStep === 0){ stepLabel.textContent = '演示完成，重新开始...'; await delay(900); currentScreenIndex = -1; }
+    playStep(nextStep);
+  }
+
+  function start(){ currentStep=0; currentScreenIndex=-1; isPlaying=true; pauseBtn.textContent='暂停'; hideCursor(); playStep(0); }
+  replayBtn.addEventListener('click', () => { if(timerHandle) clearTimeout(timerHandle); hideCursor(); start(); });
+  pauseBtn.addEventListener('click', () => { if(isPlaying){ isPlaying=false; pauseBtn.textContent='继续'; if(timerHandle) clearTimeout(timerHandle); } else { isPlaying=true; pauseBtn.textContent='暂停'; playStep(currentStep); } });
+  setTimeout(() => start(), 500);
+})();
+</script>
+</body>
+</html>

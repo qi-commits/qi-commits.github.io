@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Q 版转身 Demo v5 · 去叠影</title>
+  <style>
+    :root {
+      --bg: #f3f5f7;
+      --ink: #101418;
+      --muted: #5b6570;
+      --accent: #0c6e6b;
+      --font: "Avenir Next", "PingFang SC", "Hiragino Sans GB", sans-serif;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100dvh;
+      font-family: var(--font);
+      color: var(--ink);
+      background:
+        radial-gradient(900px 420px at 15% -8%, rgba(12, 110, 107, 0.08), transparent 55%),
+        var(--bg);
+    }
+
+    .bar {
+      background: #084e4c;
+      color: #e8f6f5;
+      text-align: center;
+      font-size: 12px;
+      padding: 9px 14px;
+    }
+
+    .page {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 28px 20px 48px;
+      display: grid;
+      gap: 24px;
+    }
+
+    @media (min-width: 900px) {
+      .page {
+        grid-template-columns: 0.85fr 1.15fr;
+        align-items: center;
+        min-height: calc(100dvh - 40px);
+      }
+    }
+
+    .kicker {
+      font-size: 11px;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    h1 {
+      margin-top: 10px;
+      font-size: clamp(28px, 4vw, 40px);
+      letter-spacing: -0.03em;
+    }
+
+    p {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.65;
+      max-width: 40ch;
+    }
+
+    .meta {
+      margin-top: 16px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .meta strong { color: var(--accent); }
+
+    .stage {
+      position: relative;
+      width: min(100%, 560px);
+      aspect-ratio: 1 / 1.15;
+      margin-inline: auto;
+      border-radius: 28px;
+      background: linear-gradient(180deg, #f7f8f9, #eef1f3);
+      box-shadow: 0 22px 50px rgba(16, 20, 24, 0.08);
+      overflow: hidden;
+      touch-action: none;
+      cursor: crosshair;
+    }
+
+    .stage canvas {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .hint {
+      position: absolute;
+      left: 50%;
+      bottom: 12px;
+      transform: translateX(-50%);
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    .strip {
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      top: 14px;
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(16, 20, 24, 0.08);
+      overflow: hidden;
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    .strip > i {
+      display: block;
+      height: 100%;
+      width: 100%;
+      transform-origin: left center;
+      transform: scaleX(0.5);
+      border-radius: inherit;
+      background: var(--accent);
+      will-change: transform;
+    }
+  </style>
+</head>
+<body>
+  <div class="bar">Demo v5 · 关掉邻帧混合（叠影根因）· 回一致 9 帧硬切 · 跟手更快</div>
+
+  <div class="page">
+    <div>
+      <p class="kicker">No ghosting</p>
+      <h1>去掉叠影，卡顿会轻很多</h1>
+      <p>
+        上一段录屏里能看到半透明「重影」——那是 23 帧邻帧透明度混合造成的，不是帧太少。
+        这版关掉混合，改回比例一致的 9 帧硬切；身体只做轻微倾斜，不再叠两张图。
+      </p>
+      <p class="meta">当前：<strong id="frameLabel">正面</strong> · <span id="status">加载中…</span></p>
+    </div>
+
+    <div class="stage" id="stage">
+      <div class="strip"><i id="meter"></i></div>
+      <canvas id="canvas" width="640" height="736"></canvas>
+      <div class="hint">MOVE LEFT / RIGHT</div>
+    </div>
+  </div>
+
+  <script>
+    // Consistent mirrored set (same character proportions). Hard-cut only.
+    const LABELS = [
+      "最左", "左大", "左中", "左轻", "正面", "右轻", "右中", "右大", "最右",
+    ];
+    const SRC = LABELS.map((_, i) => `./assets/angles_v3/a-${i}.webp`);
+    const N = SRC.length;
+    const CENTER = 4;
+
+    const stage = document.getElementById("stage");
+    const canvas = document.getElementById("canvas");
+    const ctx = canvas.getContext("2d", { alpha: true, desynchronized: true });
+    const meter = document.getElementById("meter");
+    const frameLabel = document.getElementById("frameLabel");
+    const statusEl = document.getElementById("status");
+
+    /** @type {(ImageBitmap|HTMLImageElement)[]} */
+    const frames = new Array(N);
+    let ready = false;
+    let nxPointer = 0.5;
+    let nxLean = 0.5;
+    let hovering = false;
+    let locked = CENTER;
+    let active = -1;
+    let lastLean = 999;
+    let lastShift = 999;
+
+    function resize() {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const rect = stage.getBoundingClientRect();
+      const w = Math.max(1, Math.round(rect.width * dpr));
+      const h = Math.max(1, Math.round(rect.height * dpr));
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w;
+        canvas.height = h;
+        lastLean = 999; // force repaint
+      }
+    }
+
+    function paint(force = false) {
+      if (!ready) return;
+      const lean = (nxLean - 0.5) * 0.04;
+      const shift = (nxLean - 0.5) * canvas.width * 0.02;
+      if (
+        !force &&
+        locked === active &&
+        Math.abs(lean - lastLean) < 0.0008 &&
+        Math.abs(shift - lastShift) < 0.2
+      ) {
+        return;
+      }
+
+      const bmp = frames[locked];
+      if (!bmp) return;
+
+      const cw = canvas.width;
+      const ch = canvas.height;
+      ctx.clearRect(0, 0, cw, ch);
+
+      const padX = cw * 0.1;
+      const padTop = ch * 0.06;
+      const padBot = ch * 0.04;
+      const boxW = cw - padX * 2;
+      const boxH = ch - padTop - padBot;
+      const scale = Math.min(boxW / bmp.width, boxH / bmp.height);
+      const dw = bmp.width * scale;
+      const dh = bmp.height * scale;
+
+      ctx.save();
+      ctx.translate(cw / 2 + shift, ch - padBot);
+      ctx.rotate(lean);
+      ctx.drawImage(bmp, -dw / 2, -dh, dw, dh);
+      ctx.restore();
+
+      if (locked !== active) {
+        active = locked;
+        frameLabel.textContent = LABELS[locked];
+      }
+      lastLean = lean;
+      lastShift = shift;
+      meter.style.transform = `scaleX(${nxLean})`;
+    }
+
+    async function loadOne(url) {
+      const res = await fetch(url, { cache: "force-cache" });
+      const blob = await res.blob();
+      try {
+        return await createImageBitmap(blob);
+      } catch {
+        return await new Promise((resolve, reject) => {
+          const im = new Image();
+          im.onload = () => resolve(im);
+          im.onerror = reject;
+          im.src = URL.createObjectURL(blob);
+        });
+      }
+    }
+
+    async function preload() {
+      statusEl.textContent = "预加载…";
+      await Promise.all(SRC.map(async (url, i) => {
+        frames[i] = await loadOne(url);
+      }));
+      ready = true;
+      resize();
+      locked = CENTER;
+      paint(true);
+      statusEl.textContent = "就绪 · 9 帧硬切";
+    }
+
+    function pointerToNx(e) {
+      const rect = stage.getBoundingClientRect();
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    }
+
+    // Snap frame from pointer with hysteresis (no crossfade)
+    function updateFrameFromNx(nx) {
+      const pos = nx * (N - 1);
+      const nearest = Math.round(pos);
+      if (nearest !== locked && Math.abs(pos - locked) >= 0.42) {
+        locked = nearest;
+      }
+    }
+
+    function onEnter(e) {
+      hovering = true;
+      nxPointer = pointerToNx(e);
+      updateFrameFromNx(nxPointer);
+    }
+    function onMove(e) {
+      hovering = true;
+      nxPointer = pointerToNx(e);
+      updateFrameFromNx(nxPointer);
+    }
+    function onLeave() {
+      hovering = false;
+      nxPointer = 0.5;
+      locked = CENTER;
+    }
+
+    stage.addEventListener("pointerenter", onEnter);
+    stage.addEventListener("pointermove", onMove);
+    stage.addEventListener("pointerleave", onLeave);
+    stage.addEventListener("touchstart", onEnter, { passive: true });
+    stage.addEventListener("touchmove", onMove, { passive: true });
+    stage.addEventListener("touchend", onLeave);
+    window.addEventListener("resize", () => {
+      resize();
+      paint(true);
+    });
+
+    function tick() {
+      // Only lean is smoothed — frame index snaps (no ghost blend)
+      const k = hovering ? 0.55 : 0.18;
+      nxLean += (nxPointer - nxLean) * k;
+      if (!hovering && Math.abs(nxLean - 0.5) < 0.002) {
+        nxLean = 0.5;
+        locked = CENTER;
+      }
+      paint(false);
+      requestAnimationFrame(tick);
+    }
+
+    window.__qTurn = {
+      setNx(nx) {
+        hovering = true;
+        nxPointer = Math.max(0, Math.min(1, nx));
+        nxLean = nxPointer;
+        locked = Math.round(nxPointer * (N - 1));
+        paint(true);
+        return { nx: nxPointer, frame: locked, label: LABELS[locked] };
+      },
+      get() {
+        return { ready, active, locked, nxLean, label: LABELS[locked] };
+      },
+    };
+
+    preload().then(tick);
+  </script>
+</body>
+</html>

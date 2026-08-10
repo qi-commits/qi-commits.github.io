@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>特需服务费系统 - 交互流程演示</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+body{
+  background:linear-gradient(135deg,#0f0c29,#1a1a3e,#24243e);
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif;
+  overflow:hidden;padding:20px;
+}
+.stage{display:flex;flex-direction:column;align-items:center;gap:18px;}
+.demo-title{color:#fff;font-size:22px;font-weight:600;letter-spacing:1px;text-shadow:0 2px 10px rgba(0,0,0,.3);}
+.demo-subtitle{color:rgba(255,255,255,.5);font-size:13px;margin-top:-12px;}
+.phone{
+  width:375px;height:760px;background:#1a1a1a;border-radius:44px;padding:11px;
+  box-shadow:0 0 0 2px #333,0 25px 70px rgba(0,0,0,.6),0 0 100px rgba(24,144,255,.08);
+  position:relative;
+}
+.notch{position:absolute;top:11px;left:50%;transform:translateX(-50%);width:156px;height:30px;background:#1a1a1a;border-radius:0 0 18px 18px;z-index:50;}
+.notch::after{content:'';position:absolute;right:28px;top:9px;width:10px;height:10px;border-radius:50%;background:#2a2a2a;box-shadow:inset 0 0 3px rgba(0,0,0,.8);}
+.screen-wrap{width:100%;height:100%;background:#f5f5f5;border-radius:34px;overflow:hidden;position:relative;}
+.home-indicator{position:absolute;bottom:6px;left:50%;transform:translateX(-50%);width:134px;height:5px;background:rgba(0,0,0,.85);border-radius:3px;z-index:50;}
+
+.screen{position:absolute;top:0;left:0;width:100%;height:100%;background:#f5f5f5;overflow-y:auto;overflow-x:hidden;transition:transform .45s cubic-bezier(.4,0,.2,1),opacity .35s ease;opacity:0;transform:translateX(100%);}
+.screen.active{opacity:1;transform:translateX(0);}
+.screen.no-scroll{overflow:hidden;}
+
+.status-bar{height:44px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 24px 6px;font-size:15px;font-weight:600;color:#000;background:transparent;position:relative;z-index:5;}
+.status-bar .sb-right{display:flex;align-items:center;gap:5px;}
+.sb-signal{display:flex;gap:2px;align-items:flex-end;}
+.sb-signal span{width:3px;border-radius:1px;background:#000;}
+.sb-signal span:nth-child(1){height:4px;}.sb-signal span:nth-child(2){height:6px;}.sb-signal span:nth-child(3){height:8px;}.sb-signal span:nth-child(4){height:10px;}
+.sb-wifi{width:16px;height:12px;position:relative;}
+.sb-wifi::before{content:'';position:absolute;inset:0;border-radius:50% 50% 0 0;border:2px solid #000;border-bottom:none;clip-path:polygon(0 0,100% 0,100% 40%,50% 100%,0 40%);}
+.sb-battery{width:25px;height:12px;border:1.5px solid #000;border-radius:3px;position:relative;padding:1.5px;}
+.sb-battery::after{content:'';position:absolute;right:-3px;top:3px;width:2px;height:5px;background:#000;border-radius:0 1px 1px 0;}
+.sb-battery-fill{width:80%;height:100%;background:#000;border-radius:1px;}
+
+.nav-header{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;background:#fff;border-bottom:1px solid #eee;position:relative;}
+.nav-back{font-size:22px;color:#000;cursor:pointer;line-height:1;}
+.nav-title{font-size:17px;font-weight:600;color:#000;position:absolute;left:50%;transform:translateX(-50%);}
+.nav-right{font-size:14px;color:#999;cursor:pointer;}
+
+.label-val{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:13px;}
+.label-val .l{color:#999;}
+.label-val .v{color:#333;font-weight:500;}
+.label-val .v.bold{font-weight:700;font-size:15px;}
+.label-val .v.blue{color:#1890ff;}
+.label-val .v.red{color:#ff4d4f;}
+.label-val .v.orange{color:#fa8c16;}
+.link-blue{color:#1890ff;font-size:13px;cursor:pointer;}
+
+.badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:500;}
+.badge-green{background:#f6ffed;color:#52c41a;border:1px solid #b7eb8f;}
+.badge-orange{background:#fff7e6;color:#fa8c16;border:1px solid #ffd591;}
+.badge-red{background:#fff1f0;color:#ff4d4f;border:1px solid #ffa39e;}
+.badge-blue{background:#e6f7ff;color:#1890ff;border:1px solid #91d5ff;}
+.badge-gray{background:#f5f5f5;color:#999;border:1px solid #d9d9d9;}
+
+.section-label{font-size:13px;color:#999;padding:10px 16px 4px;}
+
+/* S0: 佣金总览 */
+.s0-bar{display:flex;justify-content:space-between;padding:10px 16px 6px;background:#fff;}
+.s0-bar .item{font-size:14px;color:#333;display:flex;align-items:center;gap:4px;}
+.s0-bar .chevron{font-size:10px;color:#ccc;}
+.s0-summary{background:linear-gradient(135deg,#1890ff,#096dd9);border-radius:12px;margin:8px 12px;padding:16px;color:#fff;}
+.s0-sum-title{font-size:13px;opacity:.8;margin-bottom:10px;}
+.s0-sum-cols{display:flex;justify-content:space-between;text-align:center;margin-bottom:12px;}
+.s0-sum-cols .col{flex:1;}
+.s0-sum-cols .cl{font-size:11px;opacity:.7;margin-bottom:4px;}
+.s0-sum-cols .cv{font-size:18px;font-weight:700;}
+.s0-sum-calc{display:flex;align-items:center;gap:6px;font-size:12px;background:rgba(255,255,255,.15);border-radius:8px;padding:10px;flex-wrap:wrap;}
+.s0-sum-calc .num{font-weight:700;}
+.s0-sum-calc .op{opacity:.6;}
+.s0-sum-calc .result{font-size:15px;font-weight:700;}
+.s0-sum-calc .detail{text-align:right;width:100%;margin-top:4px;}
+.s0-sum-calc .detail a{color:rgba(255,255,255,.8);font-size:12px;}
+.s0-store-info{padding:6px 16px;font-size:12px;color:#666;}
+.s0-store-info .star{color:#fa8c16;font-weight:600;}
+.s0-cat-card{background:#fff;border-radius:12px;margin:8px 12px;padding:12px 14px;box-shadow:0 1px 3px rgba(0,0,0,.05);border:1px solid #f0f0f0;}
+.s0-cat-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.s0-cat-title{font-size:15px;font-weight:600;color:#333;}
+.s0-cat-badge{font-size:11px;color:#ff4d4f;display:flex;align-items:center;gap:4px;}
+.s0-cat-badge .dot{width:6px;height:6px;background:#ff4d4f;border-radius:50%;}
+.s0-cat-cols{display:flex;justify-content:space-between;text-align:center;padding:8px 0;border-top:1px solid #f5f5f5;}
+.s0-cat-cols .col{flex:1;}
+.s0-cat-cols .cl{font-size:10px;color:#999;}
+.s0-cat-cols .cv{font-size:14px;font-weight:600;color:#333;margin-top:2px;}
+.s0-cat-footer{display:flex;justify-content:space-between;align-items:center;padding-top:6px;border-top:1px solid #f5f5f5;}
+.s0-cat-footer .alert{font-size:11px;color:#ff4d4f;display:flex;align-items:center;gap:3px;}
+.s0-cat-footer .alert .dot{width:5px;height:5px;background:#ff4d4f;border-radius:50%;}
+
+/* S1: 待开票金额 */
+.s1-tabs{display:flex;padding:8px 16px;background:#fff;border-bottom:1px solid #f0f0f0;}
+.s1-tab{font-size:15px;padding:6px 0;margin-right:24px;cursor:pointer;position:relative;color:#999;}
+.s1-tab.active{color:#1890ff;font-weight:600;}
+.s1-tab.active::after{content:'';position:absolute;bottom:-9px;left:0;right:0;height:3px;background:#1890ff;border-radius:2px;}
+.s1-filters{display:flex;gap:8px;padding:8px 12px;background:#fff;}
+.s1-filters .ff{font-size:12px;color:#1890ff;display:flex;align-items:center;gap:3px;background:#f0f7ff;padding:4px 10px;border-radius:6px;}
+.s1-warn{background:#fff2f0;margin:8px 12px;border-radius:8px;padding:10px 14px;display:flex;align-items:center;gap:8px;}
+.s1-warn-icon{width:18px;height:18px;border-radius:50%;background:#ff4d4f;color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;flex-shrink:0;}
+.s1-warn-text{font-size:12px;color:#ff4d4f;}
+.s1-inv-card{background:#fff;border-radius:12px;margin:6px 12px;padding:12px 14px;box-shadow:0 1px 2px rgba(0,0,0,.04);display:flex;align-items:flex-start;gap:10px;}
+.s1-radio{width:22px;height:22px;border-radius:50%;border:2px solid #ddd;flex-shrink:0;margin-top:2px;display:flex;align-items:center;justify-content:center;}
+.s1-radio.checked{background:#1890ff;border-color:#1890ff;}
+.s1-radio.checked::after{content:'✓';color:#fff;font-size:13px;font-weight:700;}
+.s1-ic-info{flex:1;}
+.s1-ic-title{font-size:14px;font-weight:600;color:#333;margin-bottom:4px;}
+.s1-ic-meta{font-size:11px;color:#999;line-height:1.6;}
+.s1-ic-meta .num{color:#333;}
+.s1-ic-total{text-align:right;font-size:13px;font-weight:700;color:#333;margin-top:4px;}
+.s1-bottom-bar{position:absolute;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #eee;padding:10px 16px;display:flex;justify-content:space-between;align-items:center;z-index:10;}
+.s1-bl{display:flex;align-items:center;gap:6px;font-size:13px;color:#666;}
+.s1-bl .s1-radio{width:18px;height:18px;margin-top:0;}
+.s1-bl-total{font-size:15px;font-weight:700;color:#333;}
+.s1-bl-note{font-size:10px;color:#999;}
+.s1-btn{background:#1890ff;color:#fff;border:none;border-radius:8px;padding:10px 28px;font-size:15px;font-weight:500;cursor:pointer;}
+.s1-btn.disabled{background:#d9d9d9;color:#fff;}
+
+/* S2: 开票记录 */
+.s2-card{background:#fff;border-radius:12px;margin:6px 12px;padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+.s2-card-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+.s2-amount{font-size:15px;font-weight:700;color:#333;}
+.s2-card-meta{font-size:12px;color:#999;line-height:1.6;}
+.s2-card-meta .num{color:#333;}
+.s2-card-link{text-align:right;margin-top:6px;}
+.s2-card-btn{margin-top:8px;padding-top:8px;border-top:1px solid #f5f5f5;text-align:center;}
+.s2-reissue-btn{display:inline-block;padding:6px 24px;font-size:13px;border:1px solid #ddd;border-radius:6px;color:#666;cursor:pointer;}
+.s2-more{text-align:center;padding:12px;font-size:13px;color:#999;}
+
+/* S3: 发票详情 */
+.s3-detail-card{background:#fff;border-radius:12px;margin:10px 12px;padding:16px;box-shadow:0 1px 3px rgba(0,0,0,.05);}
+.s3-detail-title{font-size:16px;font-weight:600;color:#333;margin-bottom:12px;}
+.s3-batch-title{font-size:14px;font-weight:600;color:#333;padding:8px 16px 4px;}
+.s3-batch-card{background:#fff;border-radius:10px;margin:4px 12px 8px;padding:12px 14px;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+.s3-batch-header{display:flex;justify-content:space-between;align-items:center;}
+.s3-batch-name{font-size:14px;font-weight:600;color:#333;}
+.s3-batch-amount{font-size:15px;font-weight:700;color:#333;}
+
+/* S4: 开具发票 */
+.s4-form{overflow-y:auto;height:calc(100% - 44px - 60px);}
+.s4-section-title{font-size:13px;color:#999;padding:12px 16px 4px;}
+.s4-form-card{background:#fff;border-radius:12px;margin:0 12px 8px;padding:4px 16px;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+.s4-field{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid #f8f8f8;}
+.s4-field:last-child{border-bottom:none;}
+.s4-field .l{font-size:14px;color:#333;}
+.s4-field.required .l::before{content:'*';color:#ff4d4f;margin-right:3px;}
+.s4-field .v{font-size:14px;color:#999;display:flex;align-items:center;gap:4px;}
+.s4-field .v.filled{color:#333;font-weight:500;}
+.s4-remark-box{background:#fff;border-radius:12px;margin:0 12px 8px;padding:14px 16px;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+.s4-remark-title{font-size:14px;font-weight:600;color:#333;margin-bottom:4px;}
+.s4-remark-hint{font-size:12px;color:#999;margin-bottom:8px;}
+.s4-remark-input{width:100%;border:1px solid #eee;border-radius:8px;padding:10px;font-size:13px;color:#333;min-height:60px;background:#f9f9f9;}
+.s4-remark-counter{text-align:right;font-size:11px;color:#ccc;margin-top:4px;}
+.s4-total-box{background:#fff;border-radius:12px;margin:0 12px 8px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+.s4-total-label{font-size:14px;font-weight:600;color:#333;}
+.s4-total-amount{font-size:18px;font-weight:700;color:#333;}
+.s4-tips{background:#f8f8f8;border-radius:8px;margin:0 12px 8px;padding:12px 14px;font-size:12px;color:#999;line-height:1.8;}
+.s4-tips-title{font-weight:600;color:#666;margin-bottom:4px;}
+.s4-bottom-bar{position:absolute;bottom:0;left:0;right:0;background:#fff;border-top:1px solid #eee;padding:10px 16px;z-index:10;}
+.s4-submit-btn{width:100%;padding:13px 0;text-align:center;font-size:16px;border:none;border-radius:10px;background:#1890ff;color:#fff;font-weight:500;cursor:pointer;}
+
+/* S5: 发票预览弹窗 */
+.s5-overlay{position:absolute;inset:0;background:rgba(0,0,0,.3);z-index:90;}
+.s5-modal{position:absolute;top:120px;left:24px;right:24px;background:#fff;border-radius:16px;padding:20px;z-index:91;box-shadow:0 10px 40px rgba(0,0,0,.15);}
+.s5-close{position:absolute;top:-12px;right:-12px;width:28px;height:28px;border-radius:50%;background:#333;color:#fff;display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.3);}
+.s5-company{font-size:13px;color:#333;font-weight:500;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;}
+.s5-preview-link{font-size:12px;color:#999;cursor:pointer;}
+.s5-amount-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+.s5-amount{font-size:22px;font-weight:700;color:#fa8c16;}
+.s5-info-row{padding:8px 0;border-bottom:1px solid #f5f5f5;font-size:13px;display:flex;justify-content:space-between;}
+.s5-info-row .l{color:#666;}
+.s5-info-row .v{color:#333;font-weight:500;}
+.s5-download-btn{width:100%;margin-top:16px;padding:12px 0;text-align:center;font-size:15px;border:none;border-radius:10px;background:#1890ff;color:#fff;font-weight:500;cursor:pointer;}
+
+/* Finger */
+.finger{position:absolute;top:0;left:0;width:60px;height:60px;z-index:9999;pointer-events:none;transition:transform .8s cubic-bezier(.4,0,.2,1),opacity .2s ease;opacity:0;transform:translate(-100px,-100px);}
+.finger.visible{opacity:1;}
+.finger-dot{width:100%;height:100%;border-radius:50%;position:relative;background:radial-gradient(circle at 35% 35%,rgba(255,255,255,1),rgba(24,144,255,.6));border:4px solid rgba(24,144,255,1);box-shadow:0 6px 20px rgba(24,144,255,.5),0 3px 8px rgba(0,0,0,.3),inset 0 2px 4px rgba(255,255,255,.3);transition:transform .15s ease,background .15s ease;}
+.finger.tapping .finger-dot{transform:scale(.45);background:radial-gradient(circle at 35% 35%,rgba(255,255,255,1),rgba(24,144,255,.7));box-shadow:0 2px 8px rgba(24,144,255,.6);}
+.tap-ripple{position:absolute;top:50%;left:50%;width:60px;height:60px;border-radius:50%;border:2px solid rgba(24,144,255,.6);transform:translate(-50%,-50%) scale(0);opacity:0;}
+.finger.tapping .tap-ripple{animation:rippleAnim .6s ease-out;}
+@keyframes rippleAnim{0%{transform:translate(-50%,-50%) scale(0);opacity:1;}100%{transform:translate(-50%,-50%) scale(3);opacity:0;}}
+.tap-highlight::after{content:'';position:absolute;inset:-4px;border-radius:8px;border:2px solid rgba(24,144,255,.6);animation:highlightPulse .5s ease-out;pointer-events:none;}
+@keyframes highlightPulse{0%{opacity:1;transform:scale(1);}100%{opacity:0;transform:scale(1.1);}}
+
+.progress-row{display:flex;align-items:center;gap:16px;}
+.progress-dots{display:flex;gap:8px;}
+.pdot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.2);transition:all .3s ease;}
+.pdot.active{background:#1890ff;width:24px;border-radius:4px;}
+.pdot.done{background:rgba(24,144,255,.5);}
+.step-label{color:rgba(255,255,255,.7);font-size:13px;min-width:200px;text-align:center;}
+.controls{display:flex;gap:10px;}
+.ctrl-btn{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:6px 16px;font-size:13px;cursor:pointer;transition:all .2s ease;}
+.ctrl-btn:hover{background:rgba(255,255,255,.2);}
+
+/* Portfolio embed modes */
+html.embed,html.embed body{
+  background:transparent !important;
+  min-height:0;
+  height:100%;
+  overflow:hidden;
+  padding:0;
+}
+html.embed .stage{
+  width:100%;
+  height:100%;
+  justify-content:center;
+  gap:12px;
+}
+html.embed .demo-title,
+html.embed .demo-subtitle{display:none;}
+html.embed.compact .progress-row,
+html.embed.compact .step-label,
+html.embed.compact .controls{display:none;}
+html.embed .step-label{color:rgba(15,23,32,.55);min-width:0;}
+html.embed .ctrl-btn{
+  background:rgba(15,23,32,.06);
+  color:#1a2330;
+  border-color:rgba(15,23,32,.12);
+}
+html.embed .ctrl-btn:hover{background:rgba(15,23,32,.1);}
+html.embed .pdot{background:rgba(15,23,32,.15);}
+html.embed .pdot.active{background:#1890ff;box-shadow:0 0 8px rgba(24,144,255,.35);}
+html.embed .pdot.done{background:rgba(24,144,255,.45);}
+html.embed .phone{
+  box-shadow:
+    0 0 0 1px rgba(15,23,32,.1),
+    0 10px 24px rgba(15,23,32,.14);
+}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="demo-title">特需服务费系统 · 交互流程演示</div>
+  <div class="demo-subtitle">高清自动播放 · 模拟手指触控交互</div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen-wrap" id="screenWrap">
+
+      <!-- Screen 0: 佣金总览 -->
+      <div class="screen" data-screen="0">
+        <div class="status-bar"><span>9:41</span><div class="sb-right"><div class="sb-signal"><span></span><span></span><span></span><span></span></div><div class="sb-wifi"></div><div class="sb-battery"><div class="sb-battery-fill"></div></div></div></div>
+        <div class="nav-header"><span class="nav-back">‹</span><span class="nav-title">佣金总览</span><span class="nav-right">名词解释</span></div>
+        <div class="s0-bar"><div class="item">西二旗1店 <span class="chevron">▾</span></div><div class="item">2023年5月 <span class="chevron">▾</span></div></div>
+        <div class="s0-summary">
+          <div class="s0-sum-title">佣金总览 (元)</div>
+          <div class="s0-sum-cols">
+            <div class="col"><div class="cl">预计应结佣金</div><div class="cv">19,893.35</div></div>
+            <div class="col"><div class="cl">已结佣金</div><div class="cv">49,493.35</div></div>
+            <div class="col"><div class="cl">预计未结佣金</div><div class="cv">30,000.00</div></div>
+          </div>
+          <div class="s0-sum-calc">
+            <span>已结佣金</span><span class="num">49,493.35</span>
+            <span class="op">+</span><span>增减项</span><span class="num">-14,214.46</span>
+            <span class="op">=</span><span>到账金额</span><span class="result">35,278.89</span>
+            <div class="detail"><a>查看明细 ›</a></div>
+          </div>
+        </div>
+        <div class="s0-store-info">西二旗1店 <span class="star">(8星)</span> 季度档位积分为 10000.45 · 已结算权益值 500.00 <a class="link-blue">查看</a></div>
+        <div class="s0-cat-card" data-tap="go-invoice">
+          <div class="s0-cat-header"><span class="s0-cat-title">二手业务</span><span class="s0-cat-badge"><span class="dot"></span>查看 ›</span></div>
+          <div class="s0-cat-cols">
+            <div class="col"><div class="cl">预计应结佣金</div><div class="cv">19,893.35</div></div>
+            <div class="col"><div class="cl">已结佣金</div><div class="cv">19,493.35</div></div>
+            <div class="col"><div class="cl">预计未结佣金</div><div class="cv">0.00</div></div>
+          </div>
+          <div class="s0-cat-footer"><span class="alert"><span class="dot"></span>您有2条待办待处理，请尽快处理！</span><span class="link-blue">查看明细 ›</span></div>
+        </div>
+        <div class="s0-cat-card">
+          <div class="s0-cat-header"><span class="s0-cat-title">新房业务</span><span class="s0-cat-badge"><span class="dot"></span>查看 ›</span></div>
+          <div class="s0-cat-cols">
+            <div class="col"><div class="cl">预计应结佣金(不含税)</div><div class="cv">19,893.35</div></div>
+            <div class="col"><div class="cl">已结佣金(不含税)</div><div class="cv">19,493.35</div></div>
+            <div class="col"><div class="cl">预计未结佣金</div><div class="cv">0.00</div></div>
+          </div>
+          <div class="s0-cat-footer"><span class="alert"><span class="dot"></span>您有2条待办待处理，请尽快处理！</span><span class="link-blue">查看明细 ›</span></div>
+        </div>
+        <div class="s0-cat-card">
+          <div class="s0-cat-header"><span class="s0-cat-title">好赞业务</span><span class="s0-cat-badge"><span class="dot"></span>查看 ›</span></div>
+          <div class="s0-cat-cols">
+            <div class="col"><div class="cl">预计应结佣金</div><div class="cv">19,893.35</div></div>
+            <div class="col"><div class="cl">已结佣金</div><div class="cv">19,493.35</div></div>
+            <div class="col"><div class="cl">预计未结佣金</div><div class="cv">0.00</div></div>
+          </div>
+          <div class="s0-cat-footer"><span class="alert"><span class="dot"></span>您有2条待办待处理，请尽快处理！</span><span class="link-blue">查看明细 ›</span></div>
+        </div>
+      </div>
+
+      <!-- Screen 1: 待开票金额 -->
+      <div class="screen" data-screen="1">
+        <div class="status-bar"><span>9:41</span><div class="sb-right"><div class="sb-signal"><span></span><span></span><span></span><span></span></div><div class="sb-wifi"></div><div class="sb-battery"><div class="sb-battery-fill"></div></div></div></div>
+        <div class="nav-header"><span class="nav-back">‹</span><span class="nav-title">发票管理</span><span class="nav-right"></span></div>
+        <div class="s1-tabs">
+          <div class="s1-tab active">待开票金额</div>
+          <div class="s1-tab" data-tap="tab-records">开票记录</div>
+        </div>
+        <div class="s1-filters">
+          <div class="ff">天津市盛居雅置... ▾</div>
+          <div class="ff">自定义时间 ▾</div>
+          <div class="ff">全部业务线 ▾</div>
+        </div>
+        <div class="s1-warn">
+          <div class="s1-warn-icon">!</div>
+          <div class="s1-warn-text">开票金额需 > 0，请选择其他待开票金额或等待下月开票</div>
+        </div>
+        <div class="s1-inv-card">
+          <div class="s1-radio checked" data-tap="select-item"></div>
+          <div class="s1-ic-info">
+            <div class="s1-ic-title">新房装修</div>
+            <div class="s1-ic-meta">开票统计月份：2024-12<br>购方公司：天津市盛居雅置房地产经纪有限公司<br>销方公司：北京贝壳家居科技有限公司</div>
+            <div class="s1-ic-total">合计：111.23元</div>
+          </div>
+        </div>
+        <div class="s1-inv-card">
+          <div class="s1-radio" data-tap="select-item2"></div>
+          <div class="s1-ic-info">
+            <div class="s1-ic-title">轻托管</div>
+            <div class="s1-ic-meta">开票统计月份：2024-12<br>购方公司：天津市盛居雅置房地产经纪有限公司<br>销方公司：北京贝壳家居科技有限公司</div>
+            <div class="s1-ic-total">合计：111.23元</div>
+          </div>
+        </div>
+        <div class="s1-inv-card">
+          <div class="s1-radio" data-tap="select-item3"></div>
+          <div class="s1-ic-info">
+            <div class="s1-ic-title">二手买卖</div>
+            <div class="s1-ic-meta">开票统计月份：2024-12<br>购方公司：天津市盛居雅置房地产经纪有限公司<br>销方公司：北京贝壳家居科技有限公司</div>
+            <div class="s1-ic-total">合计：222.46元</div>
+          </div>
+        </div>
+        <div class="s1-inv-card">
+          <div class="s1-radio"></div>
+          <div class="s1-ic-info">
+            <div class="s1-ic-title">自如</div>
+            <div class="s1-ic-meta">开票统计月份：2024-12<br>购方公司：天津市盛居雅置房地产经纪有限公司<br>销方公司：北京贝壳家居科技有限公司</div>
+            <div class="s1-ic-total">合计：111.23元</div>
+          </div>
+        </div>
+        <div class="s1-bottom-bar">
+          <div class="s1-bl">
+            <div class="s1-radio"></div>
+            <span>全选</span>
+            <div style="margin-left:8px;">
+              <div class="s1-bl-total">总合计：111.23元</div>
+              <div class="s1-bl-note">按实际开票金额为准</div>
+            </div>
+          </div>
+          <button class="s1-btn" data-tap="apply-invoice">申请开票</button>
+        </div>
+      </div>
+
+      <!-- Screen 2: 开票记录 -->
+      <div class="screen" data-screen="2">
+        <div class="status-bar"><span>9:41</span><div class="sb-right"><div class="sb-signal"><span></span><span></span><span></span><span></span></div><div class="sb-wifi"></div><div class="sb-battery"><div class="sb-battery-fill"></div></div></div></div>
+        <div class="nav-header"><span class="nav-back">‹</span><span class="nav-title">发票管理</span><span class="nav-right"></span></div>
+        <div class="s1-tabs">
+          <div class="s1-tab">待开票金额</div>
+          <div class="s1-tab active">开票记录</div>
+        </div>
+        <div class="s2-card">
+          <div class="s2-card-header">
+            <div class="s2-amount">开票金额: 111.23元</div>
+            <span class="badge badge-green">开票完成</span>
+          </div>
+          <div class="s2-card-meta">购方公司: 天津市盛居雅置房地产经纪有限公司<br>销方公司: 北京贝壳家居科技有限公司<br>生成时间: 2024-12-16 16:59:19</div>
+          <div class="s2-card-link"><span class="link-blue" data-tap="view-detail">查看 ›</span></div>
+          <div class="s2-card-btn"><span class="s2-reissue-btn">重开发票</span></div>
+        </div>
+        <div class="s2-card">
+          <div class="s2-card-header">
+            <div class="s2-amount">开票金额: 111.23元</div>
+            <span class="badge badge-green">开票完成</span>
+          </div>
+          <div class="s2-card-meta">购方公司: 天津市盛居雅置房地产经纪有限公司<br>销方公司: 北京贝壳家居科技有限公司<br>生成时间: 2024-12-16 16:57:01</div>
+          <div class="s2-card-link"><span class="link-blue">查看 ›</span></div>
+          <div class="s2-card-btn"><span class="s2-reissue-btn">重开发票</span></div>
+        </div>
+        <div class="s2-card">
+          <div class="s2-card-header">
+            <div class="s2-amount">开票金额: 5,901.39元</div>
+            <span class="badge badge-gray">已作废</span>
+          </div>
+          <div class="s2-card-meta">购方公司: 天津市盛居雅置房地产经纪有限公司<br>销方公司: 北京贝壳家居科技有限公司<br>生成时间: 2024-12-16 15:52:45</div>
+          <div class="s2-card-link"><span class="link-blue">查看 ›</span></div>
+        </div>
+        <div class="s2-more">更多 ▼</div>
+      </div>
+
+      <!-- Screen 3: 发票详情 -->
+      <div class="screen" data-screen="3">
+        <div class="status-bar"><span>9:41</span><div class="sb-right"><div class="sb-signal"><span></span><span></span><span></span><span></span></div><div class="sb-wifi"></div><div class="sb-battery"><div class="sb-battery-fill"></div></div></div></div>
+        <div class="nav-header"><span class="nav-back" data-tap="go-back">‹</span><span class="nav-title">发票详情</span><span class="nav-right"></span></div>
+        <div class="s3-detail-card">
+          <div class="s3-detail-title">发票信息</div>
+          <div class="label-val"><span class="l">购方公司</span><span class="v">天津市盛居雅置房地产经纪有限公司</span></div>
+          <div class="label-val"><span class="l">销方公司</span><span class="v">北京贝壳家居科技有限公司</span></div>
+          <div class="label-val"><span class="l">开票金额</span><span class="v bold">444.92元</span></div>
+        </div>
+        <div class="s3-batch-title">开票批次详情</div>
+        <div class="s3-batch-card">
+          <div class="s3-batch-header">
+            <div>
+              <div class="s3-batch-name">新房装修</div>
+              <div style="font-size:12px;color:#999;margin-top:2px;">月份: 2024-12</div>
+            </div>
+            <div class="s3-batch-amount">111.23元</div>
+          </div>
+        </div>
+        <div class="s3-batch-card">
+          <div class="s3-batch-header">
+            <div>
+              <div class="s3-batch-name">二手买卖</div>
+              <div style="font-size:12px;color:#999;margin-top:2px;">月份: 2024-12</div>
+            </div>
+            <div class="s3-batch-amount">222.46元</div>
+          </div>
+        </div>
+        <div class="s3-batch-card">
+          <div class="s3-batch-header">
+            <div>
+              <div class="s3-batch-name">轻托管</div>
+              <div style="font-size:12px;color:#999;margin-top:2px;">月份: 2024-12</div>
+            </div>
+            <div class="s3-batch-amount">111.23元</div>
+          </div>
+        </div>
+        <div style="padding:16px;">
+          <button class="s4-submit-btn" data-tap="go-issue">申请开票</button>
+        </div>
+      </div>
+
+      <!-- Screen 4: 开具发票 -->
+      <div class="screen no-scroll" data-screen="4">
+        <div class="status-bar"><span>9:41</span><div class="sb-right"><div class="sb-signal"><span></span><span></span><span></span><span></span></div><div class="sb-wifi"></div><div class="sb-battery"><div class="sb-battery-fill"></div></div></div></div>
+        <div class="nav-header"><span class="nav-back">‹</span><span class="nav-title">开具发票</span><span class="nav-right">✕</span></div>
+        <div class="s4-form">
+          <div class="s4-section-title">发票详情</div>
+          <div class="s4-form-card">
+            <div class="s4-field required"><span class="l">抬头类型</span><span class="v filled">个人/非企业单位 ›</span></div>
+            <div class="s4-field required"><span class="l">发票类型</span><span class="v filled">增值税电子普通发票 ›</span></div>
+            <div class="s4-field required"><span class="l">发票抬头</span><span class="v filled">姓名 ›</span></div>
+          </div>
+          <div class="s4-remark-box">
+            <div class="s4-remark-title">备注</div>
+            <div class="s4-remark-hint">如需其他备注请联系对接人申请</div>
+            <div class="s4-remark-input" contenteditable>合同编号：1018374732</div>
+            <div class="s4-remark-counter">0/300</div>
+          </div>
+          <div class="s4-total-box">
+            <span class="s4-total-label">总金额</span>
+            <span class="s4-total-amount">2000.00 元</span>
+          </div>
+          <div class="s4-section-title">接收方式</div>
+          <div class="s4-form-card">
+            <div class="s4-field"><span class="l">接收方式</span><span class="v filled">发送至邮箱及手机 ›</span></div>
+            <div class="s4-field required"><span class="l">手机号码</span><span class="v">请输入 ›</span></div>
+            <div class="s4-field required"><span class="l">邮箱地址</span><span class="v">请输入 ›</span></div>
+          </div>
+          <div class="s4-tips">
+            <div class="s4-tips-title">温馨提示：</div>
+            发票一经开具，任何情况下均无法申请重开<br>
+            1. 发票抬头必须为合同签约人，如个人签署合同，发票填写公司抬头，我司不予开具。<br>
+            2. 开具《增值税专用发票》，合同签约人必须为公司主体，佣金支付也需公司转账至我司。
+          </div>
+        </div>
+        <div class="s4-bottom-bar">
+          <button class="s4-submit-btn" data-tap="submit-invoice">提交</button>
+        </div>
+      </div>
+
+      <!-- Screen 5: 发票预览弹窗 -->
+      <div class="screen no-scroll" data-screen="5">
+        <div class="status-bar"><span>9:41</span><div class="sb-right"><div class="sb-signal"><span></span><span></span><span></span><span></span></div><div class="sb-wifi"></div><div class="sb-battery"><div class="sb-battery-fill"></div></div></div></div>
+        <div class="nav-header"><span class="nav-back">‹</span><span class="nav-title">开票记录</span><span class="nav-right"></span></div>
+        <div style="padding:16px;color:#999;font-size:13px;text-align:center;">开票记录列表<br>↓ 点击查看发票详情 ↓</div>
+        <div class="s5-overlay"></div>
+        <div class="s5-modal">
+          <div class="s5-close" data-tap="close-preview">✕</div>
+          <div class="s5-company">
+            <span>天津市盛居雅置房地产经纪有限...</span>
+            <span class="s5-preview-link">预览 ›</span>
+          </div>
+          <div class="s5-amount-row">
+            <div class="s5-amount">111.23 元</div>
+            <span class="badge badge-green">开票成功</span>
+          </div>
+          <div class="s5-info-row"><span class="l">发票号码：</span><span class="v">24997000007079907622</span></div>
+          <div class="s5-info-row"><span class="l">发票代码：</span><span class="v">—</span></div>
+          <div class="s5-info-row"><span class="l">开票日期：</span><span class="v">2024/12/16</span></div>
+          <button class="s5-download-btn" data-tap="download">下载</button>
+        </div>
+      </div>
+
+      <!-- Finger -->
+      <div class="finger" id="finger">
+        <div class="tap-ripple"></div>
+        <div class="finger-dot"></div>
+      </div>
+
+    </div>
+    <div class="home-indicator"></div>
+  </div>
+
+  <div class="progress-row"><div class="progress-dots" id="progressDots"></div></div>
+  <div class="step-label" id="stepLabel">准备中...</div>
+  <div class="controls">
+    <button class="ctrl-btn" id="replayBtn">重新播放</button>
+    <button class="ctrl-btn" id="pauseBtn">暂停</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const params = new URLSearchParams(location.search);
+  if (params.get('embed') === '1') document.documentElement.classList.add('embed');
+  if (params.get('compact') === '1') document.documentElement.classList.add('compact');
+
+  const screenWrap = document.getElementById('screenWrap');
+  const screens = document.querySelectorAll('.screen');
+  const finger = document.getElementById('finger');
+  const stepLabel = document.getElementById('stepLabel');
+  const progressDots = document.getElementById('progressDots');
+  const replayBtn = document.getElementById('replayBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+
+  const STEPS = [
+    { screen:0, tapSelector:'[data-tap="go-invoice"]',       label:'点击「二手业务」查看佣金明细',     transition:'init',  waitBefore:700,  waitAfter:500 },
+    { screen:1, tapSelector:'[data-tap="apply-invoice"]',    label:'选择开票项后点击「申请开票」',     transition:'push',  waitBefore:700,  waitAfter:500 },
+    { screen:2, tapSelector:'[data-tap="view-detail"]',      label:'切换至开票记录，点击查看详情',     transition:'push',  waitBefore:700,  waitAfter:500 },
+    { screen:3, tapSelector:'[data-tap="go-issue"]',         label:'查看发票批次详情，申请开票',       transition:'push',  waitBefore:1000, waitAfter:500 },
+    { screen:4, tapSelector:'[data-tap="submit-invoice"]',   label:'填写开票信息，提交申请',           transition:'push',  waitBefore:900,  waitAfter:500 },
+    { screen:5, tapSelector:'[data-tap="download"]',         label:'开票成功，预览并下载发票',         transition:'push',  waitBefore:900,  waitAfter:800 }
+  ];
+
+  STEPS.forEach(() => { const d = document.createElement('div'); d.className = 'pdot'; progressDots.appendChild(d); });
+
+  let currentStep = 0, currentScreenIndex = -1, isPlaying = true, timerHandle = null;
+
+  function delay(ms){ return new Promise(r => { timerHandle = setTimeout(r, ms); }); }
+
+  function showScreen(screenIndex, transition){
+    if(transition === 'init' || currentScreenIndex === -1){
+      screens.forEach(s => { s.classList.remove('active'); s.style.transition='none'; s.style.opacity='0'; s.style.transform='translateX(100%)'; s.style.zIndex=''; });
+      const target = screens[screenIndex];
+      requestAnimationFrame(() => { requestAnimationFrame(() => { target.style.transition=''; target.style.opacity='1'; target.style.transform='translateX(0)'; target.classList.add('active'); target.scrollTop=0; }); });
+      currentScreenIndex = screenIndex; return;
+    }
+    const target = screens[screenIndex];
+    const prev = currentScreenIndex >= 0 ? screens[currentScreenIndex] : null;
+    if(prev && prev !== target){ prev.classList.remove('active'); prev.style.zIndex='1'; prev.style.transform='translateX(-30%)'; prev.style.opacity='0'; }
+    target.style.transition='none'; target.style.zIndex='2'; target.style.transform='translateX(100%)'; target.style.opacity='0';
+    requestAnimationFrame(() => { requestAnimationFrame(() => { target.style.transition=''; target.style.opacity='1'; target.style.transform='translateX(0)'; target.classList.add('active'); target.scrollTop=0; }); });
+    currentScreenIndex = screenIndex;
+  }
+
+  function getTapPosition(screenIndex, selector){
+    const screen = screens[screenIndex];
+    const el = screen.querySelector(selector);
+    if(!el) return { x:187, y:400 };
+    const elRect = el.getBoundingClientRect();
+    const wrapRect = screenWrap.getBoundingClientRect();
+    return { x: elRect.left - wrapRect.left + elRect.width/2, y: elRect.top - wrapRect.top + elRect.height/2 };
+  }
+
+  function moveFinger(x, y){ finger.style.transform = 'translate(' + (x-30) + 'px,' + (y-30) + 'px)'; }
+  function showFinger(){ finger.classList.add('visible'); }
+  function hideFinger(){ finger.classList.remove('visible'); finger.classList.remove('tapping'); }
+  function tapFinger(){ finger.classList.add('tapping'); }
+  function releaseTap(){ finger.classList.remove('tapping'); }
+
+  function highlightElement(screenIndex, selector){
+    const el = screens[screenIndex].querySelector(selector);
+    if(!el) return;
+    el.classList.add('tap-highlight');
+    setTimeout(() => el.classList.remove('tap-highlight'), 600);
+  }
+
+  function updateProgress(stepIndex){
+    const dots = progressDots.querySelectorAll('.pdot');
+    dots.forEach((d,i) => { d.classList.remove('active','done'); if(i<stepIndex) d.classList.add('done'); else if(i===stepIndex) d.classList.add('active'); });
+  }
+
+  async function playStep(stepIndex){
+    if(!isPlaying) return;
+    const step = STEPS[stepIndex];
+    currentStep = stepIndex;
+    showScreen(step.screen, step.transition);
+    stepLabel.textContent = step.label;
+    updateProgress(stepIndex);
+    await delay(step.waitBefore);
+    if(!isPlaying) return;
+    const pos = getTapPosition(step.screen, step.tapSelector);
+    const startX = Math.min(pos.x + 50, 330);
+    const startY = Math.max(pos.y - 50, 60);
+    moveFinger(startX, startY);
+    showFinger();
+    await delay(150);
+    moveFinger(pos.x, pos.y);
+    await delay(850);
+    if(!isPlaying) return;
+    tapFinger();
+    highlightElement(step.screen, step.tapSelector);
+    await delay(220);
+    releaseTap();
+    await delay(step.waitAfter);
+    if(!isPlaying) return;
+    hideFinger();
+    await delay(200);
+    const nextStep = (stepIndex + 1) % STEPS.length;
+    if(nextStep === 0){ stepLabel.textContent = '演示完成，重新开始...'; await delay(900); currentScreenIndex = -1; }
+    playStep(nextStep);
+  }
+
+  function start(){ currentStep=0; currentScreenIndex=-1; isPlaying=true; pauseBtn.textContent='暂停'; hideFinger(); playStep(0); }
+  replayBtn.addEventListener('click', () => { if(timerHandle) clearTimeout(timerHandle); hideFinger(); start(); });
+  pauseBtn.addEventListener('click', () => { if(isPlaying){ isPlaying=false; pauseBtn.textContent='继续'; if(timerHandle) clearTimeout(timerHandle); } else { isPlaying=true; pauseBtn.textContent='暂停'; playStep(currentStep); } });
+  setTimeout(() => start(), 500);
+})();
+</script>
+</body>
+</html>

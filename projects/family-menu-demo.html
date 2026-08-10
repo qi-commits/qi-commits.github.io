@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>咱们吃啥饭 · 交互流程演示</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased;}
+body{
+  background:linear-gradient(135deg,#0f0c29,#1a1a3e,#24243e);
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-family:-apple-system,BlinkMacSystemFont,'PingFang SC','Helvetica Neue',sans-serif;
+  overflow:hidden;padding:20px;
+}
+.stage{display:flex;flex-direction:column;align-items:center;gap:18px;}
+.demo-title{color:#fff;font-size:22px;font-weight:600;letter-spacing:1px;text-shadow:0 2px 10px rgba(0,0,0,.3);}
+.demo-subtitle{color:rgba(255,255,255,.5);font-size:13px;margin-top:-12px;}
+
+/* Phone Frame */
+.phone{
+  width:375px;height:760px;background:#1a1a1a;border-radius:44px;padding:11px;
+  box-shadow:0 0 0 2px #333,0 25px 70px rgba(0,0,0,.6),0 0 100px rgba(232,107,92,.08);
+  position:relative;
+}
+.notch{
+  position:absolute;top:11px;left:50%;transform:translateX(-50%);
+  width:120px;height:32px;background:#1a1a1a;border-radius:0 0 18px 18px;z-index:50;
+}
+.notch::after{
+  content:'';position:absolute;right:22px;top:10px;width:10px;height:10px;
+  border-radius:50%;background:#2a2a2a;box-shadow:inset 0 0 3px rgba(0,0,0,.8);
+}
+.screen-wrap{
+  width:100%;height:100%;background:#000;border-radius:34px;overflow:hidden;position:relative;
+}
+.home-indicator{
+  position:absolute;bottom:6px;left:50%;transform:translateX(-50%);
+  width:134px;height:5px;background:rgba(255,255,255,.85);border-radius:3px;z-index:50;
+}
+
+/* Screens - using actual screenshots */
+.screen{
+  position:absolute;top:0;left:0;width:100%;height:100%;
+  transition:transform .45s cubic-bezier(.4,0,.2,1),opacity .35s ease;
+  opacity:0;transform:translateX(100%);
+  background-size:100% 100%;
+  background-position:center top;
+  background-repeat:no-repeat;
+  background-color:#f5f5f5;
+}
+.screen.active{opacity:1;transform:translateX(0);}
+
+/* Finger */
+.finger{position:absolute;top:0;left:0;width:60px;height:60px;z-index:9999;pointer-events:none;transition:transform .8s cubic-bezier(.4,0,.2,1),opacity .2s ease;opacity:0;transform:translate(-100px,-100px);}
+.finger.visible{opacity:1;}
+.finger-dot{width:100%;height:100%;border-radius:50%;position:relative;background:radial-gradient(circle at 35% 35%,rgba(255,255,255,1),rgba(232,107,92,.6));border:4px solid rgba(232,107,92,1);box-shadow:0 6px 20px rgba(232,107,92,.5),0 3px 8px rgba(0,0,0,.3),inset 0 2px 4px rgba(255,255,255,.3);transition:transform .15s ease,background .15s ease;}
+.finger.tapping .finger-dot{transform:scale(.45);background:radial-gradient(circle at 35% 35%,rgba(255,255,255,1),rgba(232,107,92,.7));box-shadow:0 2px 8px rgba(232,107,92,.6);}
+.tap-ripple{position:absolute;top:50%;left:50%;width:60px;height:60px;border-radius:50%;border:2px solid rgba(232,107,92,.6);transform:translate(-50%,-50%) scale(0);opacity:0;}
+.finger.tapping .tap-ripple{animation:rippleAnim .6s ease-out;}
+@keyframes rippleAnim{0%{transform:translate(-50%,-50%) scale(0);opacity:1;}100%{transform:translate(-50%,-50%) scale(3);opacity:0;}}
+
+/* Tap highlight circle */
+.tap-circle{
+  position:absolute;width:40px;height:40px;border-radius:50%;
+  border:3px solid rgba(232,107,92,.7);z-index:9998;pointer-events:none;
+  opacity:0;transform:scale(0);
+}
+.tap-circle.active{animation:tapCircleAnim .6s ease-out;}
+@keyframes tapCircleAnim{0%{opacity:1;transform:scale(.8);}100%{opacity:0;transform:scale(2);}}
+
+/* Progress & Controls */
+.progress-row{display:flex;align-items:center;gap:16px;}
+.progress-dots{display:flex;gap:8px;}
+.pdot{width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.2);transition:all .3s ease;}
+.pdot.active{background:#E86B5C;width:24px;border-radius:4px;}
+.pdot.done{background:rgba(232,107,92,.5);}
+.step-label{color:rgba(255,255,255,.7);font-size:13px;min-width:240px;text-align:center;}
+.controls{display:flex;gap:10px;}
+.ctrl-btn{background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:6px 16px;font-size:13px;cursor:pointer;transition:all .2s ease;}
+.ctrl-btn:hover{background:rgba(255,255,255,.2);}
+
+/* Portfolio embed modes */
+html.embed,html.embed body{
+  background:transparent !important;
+  min-height:0;
+  height:100%;
+  overflow:hidden;
+  padding:0;
+}
+html.embed .stage{
+  width:100%;
+  height:100%;
+  justify-content:center;
+  gap:12px;
+}
+html.embed .demo-title,
+html.embed .demo-subtitle{display:none;}
+html.embed.compact .progress-row,
+html.embed.compact .step-label,
+html.embed.compact .controls{display:none;}
+html.embed .step-label{color:rgba(15,23,32,.55);min-width:0;}
+html.embed .ctrl-btn{
+  background:rgba(15,23,32,.06);
+  color:#1a2330;
+  border-color:rgba(15,23,32,.12);
+}
+html.embed .ctrl-btn:hover{background:rgba(15,23,32,.1);}
+html.embed .pdot{background:rgba(15,23,32,.15);}
+html.embed .pdot.active{background:#e86b5c;box-shadow:0 0 8px rgba(232,107,92,.35);}
+html.embed .pdot.done{background:rgba(232,107,92,.45);}
+html.embed .phone{
+  box-shadow:
+    0 0 0 1px rgba(15,23,32,.1),
+    0 10px 24px rgba(15,23,32,.14);
+}
+</style>
+</head>
+<body>
+<div class="stage">
+  <div class="demo-title">咱们吃啥饭 · 交互流程演示</div>
+  <div class="demo-subtitle">高清自动播放 · 模拟手指触控交互 · 真实截图</div>
+  <div class="phone">
+    <div class="notch"></div>
+    <div class="screen-wrap" id="screenWrap">
+
+      <!-- Screen 0: 创建家庭 -->
+      <div class="screen" data-screen="0" style="background-image:url('food-images/screen0-create-family.png');"></div>
+
+      <!-- Screen 1: 点菜 -->
+      <div class="screen" data-screen="1" style="background-image:url('food-images/screen1-order-food.jpg');"></div>
+
+      <!-- Screen 2: 今天吃啥弹窗 -->
+      <div class="screen" data-screen="2" style="background-image:url('food-images/screen2-lucky-modal.jpg');"></div>
+
+      <!-- Screen 3: 配一桌结果 -->
+      <div class="screen" data-screen="3" style="background-image:url('food-images/screen3-match-result.jpg');"></div>
+
+      <!-- Screen 4: 订单 -->
+      <div class="screen" data-screen="4" style="background-image:url('food-images/screen4-orders.jpg');"></div>
+
+      <!-- Screen 5: 我的 -->
+      <div class="screen" data-screen="5" style="background-image:url('food-images/screen5-profile.jpg');"></div>
+
+      <!-- Screen 6: 食光榜 -->
+      <div class="screen" data-screen="6" style="background-image:url('food-images/screen6-ranking.jpg');"></div>
+
+      <!-- Tap circle highlight -->
+      <div class="tap-circle" id="tapCircle"></div>
+
+      <!-- Finger -->
+      <div class="finger" id="finger">
+        <div class="tap-ripple"></div>
+        <div class="finger-dot"></div>
+      </div>
+
+    </div>
+    <div class="home-indicator"></div>
+  </div>
+
+  <div class="progress-row"><div class="progress-dots" id="progressDots"></div></div>
+  <div class="step-label" id="stepLabel">准备中...</div>
+  <div class="controls">
+    <button class="ctrl-btn" id="replayBtn">重新播放</button>
+    <button class="ctrl-btn" id="pauseBtn">暂停</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const params = new URLSearchParams(location.search);
+  if (params.get('embed') === '1') document.documentElement.classList.add('embed');
+  if (params.get('compact') === '1') document.documentElement.classList.add('compact');
+
+  const screenWrap = document.getElementById('screenWrap');
+  const screens = document.querySelectorAll('.screen');
+  const finger = document.getElementById('finger');
+  const tapCircle = document.getElementById('tapCircle');
+  const stepLabel = document.getElementById('stepLabel');
+  const progressDots = document.getElementById('progressDots');
+  const replayBtn = document.getElementById('replayBtn');
+  const pauseBtn = document.getElementById('pauseBtn');
+
+  // Screen dimensions (inner area of phone)
+  const wrapRect = () => screenWrap.getBoundingClientRect();
+
+  // Define animation steps with tap positions (relative percentages of screen)
+  // Positions based on actual screenshots provided by user
+  const STEPS = [
+    {
+      screen: 0,  // 创建家庭
+      label: '填写昵称和家庭名称，点击「创建家庭」',
+      transition: 'init',
+      waitBefore: 800,
+      waitAfter: 500,
+      tapX: 0.50,  // 按钮居中
+      tapY: 0.76   // 卡片底部按钮位置
+    },
+    {
+      screen: 1,  // 点菜
+      label: '浏览菜品列表，点击「试试手气」',
+      transition: 'push',
+      waitBefore: 800,
+      waitAfter: 500,
+      tapX: 0.80,  // 右侧「试试手气」按钮
+      tapY: 0.22   // 搜索栏下方的卡片右侧
+    },
+    {
+      screen: 2,  // 今天吃啥弹窗
+      label: '选择「配一桌」模式，配5道菜，点击开始',
+      transition: 'fade',
+      waitBefore: 800,
+      waitAfter: 500,
+      tapX: 0.50,  // 「开始」按钮居中
+      tapY: 0.85   // 弹窗底部
+    },
+    {
+      screen: 3,  // 配一桌结果
+      label: '随机配出一桌菜，点击「全部加入」',
+      transition: 'fade',
+      waitBefore: 900,
+      waitAfter: 500,
+      tapX: 0.72,  // 右侧「全部加入」按钮
+      tapY: 0.88   // 弹窗底部右侧
+    },
+    {
+      screen: 1,  // 回到点菜页
+      label: '回到点菜页，切换到「订单」Tab',
+      transition: 'fade',
+      waitBefore: 700,
+      waitAfter: 500,
+      tapX: 0.50,  // 底部中间「订单」Tab
+      tapY: 0.95   // 底部导航栏
+    },
+    {
+      screen: 4,  // 订单
+      label: '查看订单列表，切换到「我的」',
+      transition: 'fade',
+      waitBefore: 900,
+      waitAfter: 500,
+      tapX: 0.83,  // 底部右侧「我的」Tab
+      tapY: 0.95   // 底部导航栏
+    },
+    {
+      screen: 5,  // 我的
+      label: '进入个人主页，点击「食光榜」',
+      transition: 'fade',
+      waitBefore: 800,
+      waitAfter: 500,
+      tapX: 0.50,  // 菜单项居中
+      tapY: 0.38   // 个人卡片下方第一个菜单项
+    },
+    {
+      screen: 6,  // 食光榜
+      label: '查看家庭点单榜和菜品明细',
+      transition: 'push',
+      waitBefore: 1000,
+      waitAfter: 1000,
+      tapX: 0.50,  // 居中
+      tapY: 0.42   // 第一名排名卡片
+    }
+  ];
+
+  STEPS.forEach(() => { const d = document.createElement('div'); d.className = 'pdot'; progressDots.appendChild(d); });
+
+  let currentStep = 0, currentScreenIndex = -1, isPlaying = true, timerHandle = null;
+
+  function delay(ms){ return new Promise(r => { timerHandle = setTimeout(r, ms); }); }
+
+  function showScreen(screenIndex, transition){
+    if(transition === 'init' || currentScreenIndex === -1){
+      screens.forEach(s => { s.classList.remove('active'); s.style.transition='none'; s.style.opacity='0'; s.style.transform='translateX(100%)'; s.style.zIndex=''; });
+      const target = screens[screenIndex];
+      requestAnimationFrame(() => { requestAnimationFrame(() => { target.style.transition=''; target.style.opacity='1'; target.style.transform='translateX(0)'; target.classList.add('active'); }); });
+      currentScreenIndex = screenIndex; return;
+    }
+    if(transition === 'fade'){
+      const target = screens[screenIndex];
+      const prev = currentScreenIndex >= 0 ? screens[currentScreenIndex] : null;
+      if(prev && prev !== target){ prev.classList.remove('active'); prev.style.zIndex='1'; prev.style.transition='opacity .3s ease'; prev.style.opacity='0'; }
+      target.style.transition='none'; target.style.zIndex='2'; target.style.opacity='0'; target.style.transform='translateX(0)';
+      requestAnimationFrame(() => { requestAnimationFrame(() => { target.style.transition='opacity .4s ease'; target.style.opacity='1'; target.classList.add('active'); }); });
+      currentScreenIndex = screenIndex;
+      return;
+    }
+    // push transition
+    const target = screens[screenIndex];
+    const prev = currentScreenIndex >= 0 ? screens[currentScreenIndex] : null;
+    if(prev && prev !== target){ prev.classList.remove('active'); prev.style.zIndex='1'; prev.style.transform='translateX(-30%)'; prev.style.opacity='0'; }
+    target.style.transition='none'; target.style.zIndex='2'; target.style.transform='translateX(100%)'; target.style.opacity='0';
+    requestAnimationFrame(() => { requestAnimationFrame(() => { target.style.transition=''; target.style.opacity='1'; target.style.transform='translateX(0)'; target.classList.add('active'); }); });
+    currentScreenIndex = screenIndex;
+  }
+
+  function getTapPosition(tapX, tapY){
+    const rect = wrapRect();
+    return {
+      x: rect.width * tapX,
+      y: rect.height * tapY
+    };
+  }
+
+  function moveFinger(x, y){ finger.style.transform = 'translate(' + (x-30) + 'px,' + (y-30) + 'px)'; }
+  function showFinger(){ finger.classList.add('visible'); }
+  function hideFinger(){ finger.classList.remove('visible'); finger.classList.remove('tapping'); }
+  function tapFinger(){ finger.classList.add('tapping'); }
+  function releaseTap(){ finger.classList.remove('tapping'); }
+
+  function showTapCircle(x, y){
+    tapCircle.style.left = (x - 20) + 'px';
+    tapCircle.style.top = (y - 20) + 'px';
+    tapCircle.classList.remove('active');
+    void tapCircle.offsetWidth;
+    tapCircle.classList.add('active');
+  }
+
+  function updateProgress(stepIndex){
+    const dots = progressDots.querySelectorAll('.pdot');
+    dots.forEach((d,i) => { d.classList.remove('active','done'); if(i<stepIndex) d.classList.add('done'); else if(i===stepIndex) d.classList.add('active'); });
+  }
+
+  async function playStep(stepIndex){
+    if(!isPlaying) return;
+    const step = STEPS[stepIndex];
+    currentStep = stepIndex;
+    showScreen(step.screen, step.transition);
+    stepLabel.textContent = step.label;
+    updateProgress(stepIndex);
+    await delay(step.waitBefore);
+    if(!isPlaying) return;
+    const pos = getTapPosition(step.tapX, step.tapY);
+    // Start finger from upper right area
+    const startX = Math.min(pos.x + 60, 320);
+    const startY = Math.max(pos.y - 80, 50);
+    moveFinger(startX, startY);
+    showFinger();
+    await delay(250);
+    // Move to target
+    moveFinger(pos.x, pos.y);
+    await delay(850);
+    if(!isPlaying) return;
+    // Tap
+    tapFinger();
+    showTapCircle(pos.x, pos.y);
+    await delay(220);
+    releaseTap();
+    await delay(step.waitAfter);
+    if(!isPlaying) return;
+    hideFinger();
+    await delay(200);
+    const nextStep = (stepIndex + 1) % STEPS.length;
+    if(nextStep === 0){ stepLabel.textContent = '演示完成，重新开始...'; await delay(900); currentScreenIndex = -1; }
+    playStep(nextStep);
+  }
+
+  function start(){ currentStep=0; currentScreenIndex=-1; isPlaying=true; pauseBtn.textContent='暂停'; hideFinger(); playStep(0); }
+  replayBtn.addEventListener('click', () => { if(timerHandle) clearTimeout(timerHandle); hideFinger(); start(); });
+  pauseBtn.addEventListener('click', () => { if(isPlaying){ isPlaying=false; pauseBtn.textContent='继续'; if(timerHandle) clearTimeout(timerHandle); } else { isPlaying=true; pauseBtn.textContent='暂停'; playStep(currentStep); } });
+  setTimeout(() => start(), 500);
+})();
+</script>
+</body>
+</html>
